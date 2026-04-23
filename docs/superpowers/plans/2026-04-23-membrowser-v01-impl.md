@@ -65,7 +65,7 @@ extension/
 3. 安装核心依赖:
    - `gorm.io/gorm` + `gorm.io/driver/sqlite` (modernc.org/sqlite, 无 CGO)
    - `github.com/gin-gonic/gin`
-   - `github.com/gorilla/websocket` 或 `nhooyr.io/websocket`
+   - `github.com/gorilla/websocket`
    - `github.com/spf13/viper`
    - `go.uber.org/fx`
    - `github.com/google/uuid`
@@ -148,6 +148,24 @@ type Memory struct {
     FailReason     string
     Source         string    // human / ai / memory
     CreatedAt      time.Time
+}
+
+// backend/internal/model/session.go
+type Session struct {
+    ID           string    `gorm:"primaryKey"`
+    ActiveTabID  int       // 当前活跃标签页
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
+}
+
+type Tab struct {
+    ID        int       `gorm:"primaryKey;autoIncrement"`
+    SessionID string    `gorm:"index"`
+    TabID     int       // Chrome 标签页 ID
+    URL       string
+    Title     string
+    Active    bool
+    CreatedAt time.Time
 }
 
 // backend/internal/model/update.go
@@ -257,6 +275,7 @@ type Frame struct {
 type ConnectedPayload struct {
     ServerTime time.Time `json:"server_time"`
     MaxSeq     int64     `json:"max_seq"`
+    SessionID  string    `json:"session_id"`
 }
 
 type Update struct {
@@ -265,6 +284,45 @@ type Update struct {
     ID      string          `json:"id"`
     Payload json.RawMessage `json:"payload"`
 }
+```
+
+#### 2.2 多标签页管理
+
+一个 Extension 安装 = 一个 Session，后端维护 `active_tab_id`:
+
+```go
+// backend/internal/service/tab.go
+type TabManager struct {
+    db      *gorm.DB
+    session *model.Session
+    mu      sync.RWMutex
+}
+
+func (m *TabManager) OnTabOpened(tabID int, url, title string)
+func (m *TabManager) OnTabClosed(tabID int)
+func (m *TabManager) OnTabActivated(tabID int)
+func (m *TabManager) GetActiveTabID() int
+func (m *TabManager) SwitchTab(tabID int) error
+func (m *TabManager) ListTabs() []model.Tab
+```
+
+WS 消息增加 `tab_id` 字段:
+
+```go
+// 后端 → Extension (只推给活跃标签页)
+{ "type": "page.query", "payload": { "tab_id": 456, "include_screenshot": false } }
+{ "type": "action.execute", "payload": { "tab_id": 456, "action": "click", "selector": "..." } }
+
+// Extension → 后端 (标签页事件)
+{ "type": "tab.opened", "payload": { "tab_id": 456, "url": "https://..." } }
+{ "type": "tab.closed", "payload": { "tab_id": 456 } }
+{ "type": "tab.activated", "payload": { "tab_id": 456 } }
+```
+
+**活跃标签页切换逻辑:**
+- Agent 执行 `execute_action()` 后，后端自动监听是否收到 `tab.opened` 事件
+- 如果收到，自动把 `active_tab_id` 切到新标签页
+- Agent 通过 `switch_tab()` 手动切换
 ```
 
 #### 2.2 WS 连接管理
@@ -415,6 +473,42 @@ type AskHumanInput struct {
 func (t *AskHumanTool) Run(ctx context.Context, input AskHumanInput) (AskHumanOutput, error)
 ```
 
+```go
+// backend/internal/eino/tools/list_tabs.go
+type ListTabsInput struct{}
+type ListTabsOutput struct {
+    Tabs []TabInfo `json:"tabs"`
+}
+type TabInfo struct {
+    TabID  int    `json:"tab_id"`
+    URL    string `json:"url"`
+    Title  string `json:"title"`
+    Active bool   `json:"active"`
+}
+
+func (t *ListTabsTool) Run(ctx context.Context, input ListTabsInput) (ListTabsOutput, error)
+```
+
+```go
+// backend/internal/eino/tools/switch_tab.go
+type SwitchTabInput struct {
+    TabID int `json:"tab_id"`
+}
+
+// 切换活跃标签页
+func (t *SwitchTabTool) Run(ctx context.Context, input SwitchTabInput) (SwitchTabOutput, error)
+```
+
+```go
+// backend/internal/eino/tools/open_tab.go
+type OpenTabInput struct {
+    URL string `json:"url"`
+}
+
+// 打开新标签页
+func (t *OpenTabTool) Run(ctx context.Context, input OpenTabInput) (OpenTabOutput, error)
+```
+
 #### 3.3 Tool 注册
 
 ```go
@@ -431,6 +525,9 @@ func NewRegistry(wsMgr *ws.Manager, memStore *memory.Store) *Registry {
         utils.InferTool("search_memory", "...", NewSearchMemoryTool(memStore).Run),
         utils.InferTool("save_memory", "...", NewSaveMemoryTool(memStore).Run),
         utils.InferTool("ask_human", "...", NewAskHumanTool(wsMgr).Run),
+        utils.InferTool("list_tabs", "...", NewListTabsTool(tabMgr).Run),
+        utils.InferTool("switch_tab", "...", NewSwitchTabTool(tabMgr).Run),
+        utils.InferTool("open_tab", "...", NewOpenTabTool(wsMgr).Run),
     )
     return r
 }
@@ -642,13 +739,14 @@ function showHighlight(selector: string, message: string) {
 }
 ```
 
-#### 5.5 Background Service Worker — WS 客户端
+#### 5.5 Background Service Worker — WS 客户端 + 多标签页管理
 
 ```typescript
 // extension/src/background/ws-client.ts
 class WSClient {
   private ws: WebSocket;
   private lastSeq: number = 0;
+  private sessionId: string = '';
 
   connect(url: string, authKey: string) {
     this.ws = new WebSocket(`${url}?token=${authKey}&last_seq=${this.lastSeq}`);
@@ -657,7 +755,10 @@ class WSClient {
 
   private handleFrame(frame: Frame) {
     switch (frame.type) {
-      case 'connected': this.lastSeq = frame.payload.max_seq; break;
+      case 'connected':
+        this.lastSeq = frame.payload.max_seq;
+        this.sessionId = frame.payload.session_id;
+        break;
       case 'update': this.handleUpdate(frame.payload); break;
       case 'update_batch': frame.payload.forEach(u => this.handleUpdate(u)); break;
       case 'ping': this.send({ type: 'pong' }); break;
@@ -674,6 +775,31 @@ class WSClient {
     this.lastSeq = update.seq;
   }
 }
+```
+
+```typescript
+// extension/src/background/tab-manager.ts
+// 监听标签页事件，通知后端
+chrome.tabs.onCreated.addListener((tab) => {
+  wsClient.send({
+    type: 'tab.opened',
+    payload: { tab_id: tab.id, url: tab.url, title: tab.title }
+  });
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  wsClient.send({
+    type: 'tab.closed',
+    payload: { tab_id: tabId }
+  });
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  wsClient.send({
+    type: 'tab.activated',
+    payload: { tab_id: activeInfo.tabId }
+  });
+});
 ```
 
 #### 5.6 Side Panel UI
