@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemBrowser - Chrome Extension Prototype</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              900: '#0F172A',
+              800: '#1E293B',
+              700: '#334155',
+              600: '#475569',
+              400: '#94A3B8',
+              300: '#CBD5E1',
+              200: '#E2E8F0',
+              100: '#F1F5F9',
+              50: '#F8FAFC',
+            },
+            green: {
+              500: '#22C55E',
+              400: '#4ADE80',
+              300: '#86EFAC',
+            },
+            blue: {
+              500: '#3B82F6',
+              400: '#60A5FA',
+            },
+            amber: {
+              500: '#F59E0B',
+              400: '#FBBF24',
+            },
+            red: {
+              500: '#EF4444',
+              400: '#F87171',
+            },
+          },
+          fontFamily: {
+            sans: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'IBM Plex Sans', sans-serif; background: #0F172A; color: #F8FAFC; }
+
+    .mockup-container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Browser chrome mockup */
+    .browser-chrome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #1E293B;
+    }
+
+    .browser-toolbar {
+      height: 48px;
+      background: #334155;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .browser-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .browser-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .browser-url {
+      flex: 1;
+      background: #1E293B;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 6px 12px;
+      color: #94A3B8;
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .browser-content {
+      flex: 1;
+      background: #F8FAFC;
+      padding: 32px;
+      overflow: auto;
+      position: relative;
+    }
+
+    /* Mock e-commerce page */
+    .mock-page {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .mock-page h1 {
+      color: #0F172A;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .mock-form {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .mock-form-group {
+      margin-bottom: 20px;
+    }
+
+    .mock-form-label {
+      display: block;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .mock-form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #0F172A;
+      background: #F8FAFC;
+      transition: border-color 0.2s;
+    }
+
+    .mock-form-input:focus {
+      outline: none;
+      border-color: #3B82F6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    .mock-form-textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #0F172A;
+      background: #F8FAFC;
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .mock-btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .mock-btn-primary {
+      background: #22C55E;
+      color: white;
+    }
+
+    .mock-btn-primary:hover {
+      background: #16A34A;
+    }
+
+    .mock-btn-secondary {
+      background: #E2E8F0;
+      color: #334155;
+    }
+
+    .mock-btn-secondary:hover {
+      background: #CBD5E1;
+    }
+
+    /* Highlight overlay for human-in-the-loop */
+    .highlight-overlay {
+      position: absolute;
+      border: 3px solid #F59E0B;
+      border-radius: 8px;
+      background: rgba(245, 158, 11, 0.1);
+      animation: pulse-border 2s infinite;
+      z-index: 100;
+    }
+
+    .highlight-label {
+      position: absolute;
+      top: -32px;
+      left: 0;
+      background: #F59E0B;
+      color: #0F172A;
+      padding: 4px 12px;
+      border-radius: 6px 6px 0 0;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: #F59E0B; }
+      50% { border-color: #FBBF24; }
+    }
+
+    /* Side Panel */
+    .side-panel {
+      width: 380px;
+      background: #0F172A;
+      border-left: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #22C55E, #3B82F6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: white;
+    }
+
+    .panel-logo-text {
+      font-weight: 600;
+      font-size: 16px;
+      color: #F8FAFC;
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #94A3B8;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-dot.connected {
+      background: #22C55E;
+      box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    /* Task Input */
+    .task-input-section {
+      margin-bottom: 24px;
+    }
+
+    .task-input-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94A3B8;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .task-input-wrapper {
+      position: relative;
+    }
+
+    .task-input {
+      width: 100%;
+      padding: 14px 48px 14px 16px;
+      background: #1E293B;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: #F8FAFC;
+      font-size: 14px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      resize: none;
+      min-height: 60px;
+      transition: border-color 0.2s;
+    }
+
+    .task-input:focus {
+      outline: none;
+      border-color: #22C55E;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+    }
+
+    .task-input::placeholder {
+      color: #475569;
+    }
+
+    .task-submit-btn {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 36px;
+      height: 36px;
+      background: #22C55E;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .task-submit-btn:hover {
+      background: #16A34A;
+    }
+
+    .task-submit-btn svg {
+      width: 18px;
+      height: 18px;
+      color: white;
+    }
+
+    /* Task Status */
+    .task-status-section {
+      margin-bottom: 24px;
+    }
+
+    .task-status-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .task-status-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .task-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .task-badge.running {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60A5FA;
+    }
+
+    .task-badge.completed {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ADE80;
+    }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+
+    .step-item:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .step-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-icon.completed {
+      background: #22C55E;
+    }
+
+    .step-icon.running {
+      background: #3B82F6;
+      animation: pulse 2s infinite;
+    }
+
+    .step-icon.pending {
+      background: #334155;
+      border: 2px solid #475569;
+    }
+
+    .step-icon.failed {
+      background: #EF4444;
+    }
+
+    .step-icon svg {
+      width: 12px;
+      height: 12px;
+      color: white;
+    }
+
+    .step-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .step-text {
+      font-size: 14px;
+      color: #F8FAFC;
+      line-height: 1.4;
+    }
+
+    .step-meta {
+      font-size: 12px;
+      color: #475569;
+      margin-top: 2px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .step-item.active .step-text {
+      color: #60A5FA;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Help Banner */
+    .help-banner {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05));
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .help-banner-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .help-banner-icon {
+      width: 20px;
+      height: 20px;
+      color: #F59E0B;
+    }
+
+    .help-banner-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #FBBF24;
+    }
+
+    .help-banner-text {
+      font-size: 13px;
+      color: #FCD34D;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .help-banner-btn {
+      width: 100%;
+      padding: 10px;
+      background: #F59E0B;
+      color: #0F172A;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .help-banner-btn:hover {
+      background: #D97706;
+    }
+
+    /* Memory Indicator */
+    .memory-indicator {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .memory-indicator-icon {
+      width: 16px;
+      height: 16px;
+      color: #22C55E;
+    }
+
+    .memory-indicator-text {
+      font-size: 13px;
+      color: #4ADE80;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Model Selector */
+    .model-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .model-chip {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
+      color: #94A3B8;
+    }
+
+    .model-chip.active {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: #22C55E;
+      color: #4ADE80;
+    }
+
+    .model-chip:hover {
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    /* Panel Footer */
+    .panel-footer {
+      padding: 12px 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-footer-text {
+      font-size: 11px;
+      color: #475569;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .panel-footer-links {
+      display: flex;
+      gap: 12px;
+    }
+
+    .panel-footer-link {
+      font-size: 12px;
+      color: #94A3B8;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .panel-footer-link:hover {
+      color: #F8FAFC;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+      margin: 16px 0;
+    }
+
+    /* Label */
+    .section-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    /* Demo controls */
+    .demo-controls {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 1000;
+    }
+
+    .demo-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(15, 23, 42, 0.9);
+      color: #F8FAFC;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+    }
+
+    .demo-btn:hover {
+      background: rgba(30, 41, 59, 0.9);
+    }
+
+    .demo-btn.active {
+      background: #22C55E;
+      border-color: #22C55E;
+      color: white;
+    }
+
+    /* States */
+    .state-label {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #94A3B8;
+      z-index: 1000;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Demo State Controls -->
+  <div class="demo-controls">
+    <button class="demo-btn active" onclick="showState('idle')">Idle</button>
+    <button class="demo-btn" onclick="showState('running')">Running</button>
+    <button class="demo-btn" onclick="showState('help')">Need Help</button>
+    <button class="demo-btn" onclick="showState('completed')">Completed</button>
+  </div>
+
+  <div class="state-label" id="stateLabel">State: Idle - User can input task</div>
+
+  <div class="mockup-container">
+    <!-- Browser Area -->
+    <div class="browser-chrome">
+      <div class="browser-toolbar">
+        <div class="browser-dots">
+          <div class="browser-dot" style="background: #EF4444;"></div>
+          <div class="browser-dot" style="background: #F59E0B;"></div>
+          <div class="browser-dot" style="background: #22C55E;"></div>
+        </div>
+        <div class="browser-url">
+          <span style="color: #475569;">https://</span>seller.taobao.com<span style="color: #475569;">/product/publish</span>
+        </div>
+      </div>
+
+      <div class="browser-content" id="browserContent">
+        <!-- Mock E-commerce Publish Page -->
+        <div class="mock-page">
+          <h1>发布商品</h1>
+          <div class="mock-form">
+            <div class="mock-form-group">
+              <label class="mock-form-label">商品标题</label>
+              <input type="text" class="mock-form-input" id="titleInput" placeholder="请输入商品标题">
+            </div>
+            <div class="mock-form-group">
+              <label class="mock-form-label">商品描述</label>
+              <textarea class="mock-form-textarea" id="descInput" placeholder="请输入商品描述"></textarea>
+            </div>
+            <div class="mock-form-group">
+              <label class="mock-form-label">价格 (元)</label>
+              <input type="text" class="mock-form-input" id="priceInput" placeholder="0.00" style="width: 200px;">
+            </div>
+            <div class="mock-form-group">
+              <label class="mock-form-label">商品图片</label>
+              <div style="display: flex; gap: 12px;">
+                <div style="width: 100px; height: 100px; border: 2px dashed #CBD5E1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 13px; cursor: pointer;" id="uploadBtn">
+                  + 上传图片
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 8px;">
+              <button class="mock-btn mock-btn-primary" id="publishBtn">发布商品</button>
+              <button class="mock-btn mock-btn-secondary">保存草稿</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Highlight overlay (hidden by default) -->
+        <div class="highlight-overlay" id="highlightOverlay" style="display: none;">
+          <div class="highlight-label" id="highlightLabel">请点击此处</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="side-panel">
+      <div class="panel-header">
+        <div class="panel-logo">
+          <div class="panel-logo-icon">M</div>
+          <div class="panel-logo-text">MemBrowser</div>
+        </div>
+        <div class="connection-status">
+          <div class="status-dot connected"></div>
+          <span>已连接</span>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <!-- Model Selector -->
+        <div class="section-label">模型</div>
+        <div class="model-selector">
+          <button class="model-chip">Haiku</button>
+          <button class="model-chip active">Sonnet</button>
+          <button class="model-chip">Opus</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Task Input -->
+        <div class="task-input-section">
+          <div class="task-input-label">任务描述</div>
+          <div class="task-input-wrapper">
+            <textarea class="task-input" id="taskInput" placeholder="描述你想自动化的任务...&#10;例如：把这个商品上架到淘宝"></textarea>
+            <button class="task-submit-btn" id="submitBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Connection Settings (collapsed by default) -->
+        <div id="settingsSection" style="display: none;">
+          <div class="section-label">连接设置</div>
+          <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 12px; color: #94A3B8; display: block; margin-bottom: 4px;">WebSocket URL</label>
+              <input type="text" value="ws://localhost:8080/ws" style="width: 100%; padding: 8px 12px; background: #1E293B; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #F8FAFC; font-size: 13px; font-family: 'JetBrains Mono', monospace;">
+            </div>
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 12px; color: #94A3B8; display: block; margin-bottom: 4px;">认证 Key</label>
+              <input type="password" value="••••••••••••" style="width: 100%; padding: 8px 12px; background: #1E293B; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #F8FAFC; font-size: 13px; font-family: 'JetBrains Mono', monospace;">
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button style="padding: 6px 14px; background: #22C55E; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;">保存</button>
+              <button style="padding: 6px 14px; background: #334155; color: #94A3B8; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;">测试连接</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+        </div>
+
+        <!-- Memory Indicator (shown when memory is matched) -->
+        <div class="memory-indicator" id="memoryIndicator" style="display: none;">
+          <svg class="memory-indicator-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="memory-indicator-text">记忆命中 - 直接执行</span>
+        </div>
+
+        <!-- Task Status -->
+        <div class="task-status-section">
+          <div class="task-status-header">
+            <div class="task-status-title">执行进度</div>
+            <div class="task-badge running" id="taskBadge" style="display: none;">运行中</div>
+          </div>
+
+          <div class="step-list" id="stepList">
+            <!-- Idle state -->
+            <div class="step-item" id="idleMessage">
+              <div class="step-content">
+                <div class="step-text" style="color: #475569; font-style: italic;">
+                  输入任务描述开始执行
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Help Banner (hidden by default) -->
+        <div class="help-banner" id="helpBanner" style="display: none;">
+          <div class="help-banner-header">
+            <svg class="help-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <div class="help-banner-title">需要你的帮助</div>
+          </div>
+          <div class="help-banner-text" id="helpText">
+            AI 无法找到"价格输入框"，请手动点击一次，我会记住这个操作。
+          </div>
+          <button class="help-banner-btn" id="helpBtn">开始示教</button>
+        </div>
+      </div>
+
+      <div class="panel-footer">
+        <div class="panel-footer-text">v0.1.0</div>
+        <div class="panel-footer-links">
+          <a href="#" class="panel-footer-link" onclick="toggleSettings(event)">设置</a>
+          <a href="#" class="panel-footer-link">帮助</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const states = {
+      idle: {
+        label: 'State: Idle - User can input task',
+        taskInput: '',
+        steps: [],
+        showMemory: false,
+        showHelp: false,
+        showBadge: false,
+        highlight: null,
+        activeBtn: 0,
+      },
+      running: {
+        label: 'State: Running - AI executing steps',
+        taskInput: '把这个商品上架到淘宝',
+        steps: [
+          { icon: 'completed', text: '点击"发布商品"按钮', meta: 'memory hit · 0 tokens' },
+          { icon: 'completed', text: '等待页面加载完成', meta: 'auto detect' },
+          { icon: 'running', text: '填写商品标题...', meta: 'ai inference · sonnet' },
+          { icon: 'pending', text: '填写商品描述', meta: 'pending' },
+          { icon: 'pending', text: '设置价格', meta: 'pending' },
+          { icon: 'pending', text: '上传商品图片', meta: 'pending' },
+          { icon: 'pending', text: '点击"发布商品"', meta: 'pending' },
+        ],
+        showMemory: false,
+        showHelp: false,
+        showBadge: true,
+        highlight: null,
+        activeBtn: 1,
+      },
+      help: {
+        label: 'State: Need Help - Human-in-the-loop teaching',
+        taskInput: '把这个商品上架到淘宝',
+        steps: [
+          { icon: 'completed', text: '点击"发布商品"按钮', meta: 'memory hit · 0 tokens' },
+          { icon: 'completed', text: '等待页面加载完成', meta: 'auto detect' },
+          { icon: 'completed', text: '填写商品标题', meta: 'ai inference · sonnet' },
+          { icon: 'completed', text: '填写商品描述', meta: 'ai inference · sonnet' },
+          { icon: 'failed', text: '设置价格 - AI 无法定位', meta: 'fallback to human' },
+          { icon: 'pending', text: '上传商品图片', meta: 'pending' },
+          { icon: 'pending', text: '点击"发布商品"', meta: 'pending' },
+        ],
+        showMemory: false,
+        showHelp: true,
+        showBadge: true,
+        highlight: { target: 'priceInput', label: '请点击价格输入框' },
+        activeBtn: 2,
+      },
+      completed: {
+        label: 'State: Completed - All steps done',
+        taskInput: '把这个商品上架到淘宝',
+        steps: [
+          { icon: 'completed', text: '点击"发布商品"按钮', meta: 'memory hit · 0 tokens' },
+          { icon: 'completed', text: '等待页面加载完成', meta: 'auto detect' },
+          { icon: 'completed', text: '填写商品标题', meta: 'memory hit · 0 tokens' },
+          { icon: 'completed', text: '填写商品描述', meta: 'ai inference · sonnet' },
+          { icon: 'completed', text: '设置价格', meta: 'human teach → saved' },
+          { icon: 'completed', text: '上传商品图片', meta: 'ai inference · sonnet' },
+          { icon: 'completed', text: '点击"发布商品"', meta: 'memory hit · 0 tokens' },
+        ],
+        showMemory: true,
+        showHelp: false,
+        showBadge: false,
+        highlight: null,
+        activeBtn: 3,
+      },
+    };
+
+    function showState(stateName) {
+      const state = states[stateName];
+
+      // Update demo buttons
+      document.querySelectorAll('.demo-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === state.activeBtn);
+      });
+
+      // Update state label
+      document.getElementById('stateLabel').textContent = state.label;
+
+      // Update task input
+      document.getElementById('taskInput').value = state.taskInput;
+
+      // Update memory indicator
+      document.getElementById('memoryIndicator').style.display = state.showMemory ? 'flex' : 'none';
+
+      // Update help banner
+      document.getElementById('helpBanner').style.display = state.showHelp ? 'block' : 'none';
+
+      // Update task badge
+      const badge = document.getElementById('taskBadge');
+      if (state.showBadge) {
+        badge.style.display = 'inline-block';
+        if (stateName === 'running') {
+          badge.textContent = '运行中';
+          badge.className = 'task-badge running';
+        } else if (stateName === 'help') {
+          badge.textContent = '等待帮助';
+          badge.className = 'task-badge running';
+          badge.style.background = 'rgba(245, 158, 11, 0.2)';
+          badge.style.color = '#FBBF24';
+        }
+      } else if (stateName === 'completed') {
+        badge.style.display = 'inline-block';
+        badge.textContent = '已完成';
+        badge.className = 'task-badge completed';
+      } else {
+        badge.style.display = 'none';
+      }
+
+      // Update step list
+      const stepList = document.getElementById('stepList');
+      if (state.steps.length === 0) {
+        stepList.innerHTML = `
+          <div class="step-item">
+            <div class="step-content">
+              <div class="step-text" style="color: #475569; font-style: italic;">
+                输入任务描述开始执行
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        stepList.innerHTML = state.steps.map((step, i) => `
+          <div class="step-item ${step.icon === 'running' ? 'active' : ''}">
+            <div class="step-icon ${step.icon}">
+              ${step.icon === 'completed' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>' : ''}
+              ${step.icon === 'running' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>' : ''}
+              ${step.icon === 'failed' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 18L18 6M6 6l12 12"/></svg>' : ''}
+              ${step.icon === 'pending' ? '' : ''}
+            </div>
+            <div class="step-content">
+              <div class="step-text">${step.text}</div>
+              <div class="step-meta">${step.meta}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Update highlight overlay
+      const overlay = document.getElementById('highlightOverlay');
+      if (state.highlight) {
+        const target = document.getElementById(state.highlight.target);
+        if (target) {
+          const rect = target.getBoundingClientRect();
+          const contentRect = document.getElementById('browserContent').getBoundingClientRect();
+          overlay.style.display = 'block';
+          overlay.style.left = (rect.left - contentRect.left - 6) + 'px';
+          overlay.style.top = (rect.top - contentRect.top - 6) + 'px';
+          overlay.style.width = (rect.width + 12) + 'px';
+          overlay.style.height = (rect.height + 12) + 'px';
+          document.getElementById('highlightLabel').textContent = state.highlight.label;
+        }
+      } else {
+        overlay.style.display = 'none';
+      }
+    }
+
+    // Initialize with idle state
+    showState('idle');
+
+    // Toggle settings
+    function toggleSettings(e) {
+      e.preventDefault();
+      const section = document.getElementById('settingsSection');
+      section.style.display = section.style.display === 'none' ? 'block' : 'none';
+    }
+  </script>
+</body>
+</html>
