@@ -26,6 +26,7 @@
 | 存储 | 纯本地 SQLite3 (无 CGO) + GORM |
 | 页面理解 | DOM 优先，人类示教时上传图片作为补充 |
 | 部署方式 (V0.1) | 单可执行文件 |
+| 多标签页 | 支持 (Session = Extension 安装，active_tab_id) |
 
 ---
 
@@ -98,6 +99,15 @@
 │  · call_ai_model(prompt, pageState)               │
 │    → 调用分级模型进行推理                           │
 │                                                   │
+│  · list_tabs()                                    │
+│    → 列出当前 Session 的所有标签页                  │
+│                                                   │
+│  · switch_tab(tab_id)                             │
+│    → 切换活跃标签页                                │
+│                                                   │
+│  · open_tab(url)                                  │
+│    → 打开新标签页                                  │
+│                                                   │
 │  Agent 循环:                                      │
 │  1. get_page_state() — 观察当前状态                │
 │  2. 决定下一步操作 (记忆 / AI / 人类)              │
@@ -114,6 +124,35 @@
 - **Tool 化**: 记忆、AI、人类示教都是 Agent 自主调用的 Tool
 - **每步都查记忆**: Agent 自主决定何时查记忆，不是硬编码的流程
 - **失败操作也存储**: 用于会话内避免重复失败，跨会话复用留到后续版本
+
+### 多标签页支持
+
+一个 Extension 安装 = 一个 Session，后端维护 `active_tab_id`:
+
+```
+Session (一个 Extension 安装)
+    │
+    ├── Tab 1 (WS 连接) ─ 淘宝商品页
+    ├── Tab 2 (WS 连接) ─ 1688 对比页
+    └── Tab 3 (WS 连接) ─ ERP 系统
+
+Agent state: {
+  session_id: "xxx",
+  active_tab_id: 456,    // 当前在操作哪个标签页
+  tabs: [123, 456, 789]
+}
+```
+
+**指令推送**: 只推给活跃标签页 (`active_tab_id`)
+
+**新标签页自动接管**:
+1. Agent 在 Tab 123 执行 click()
+2. Chrome 打开新 Tab 456
+3. Extension 检测到 `tab.opened` 事件，上报后端
+4. 后端自动把 `active_tab_id` 切到 456
+5. Agent 继续执行，后续操作自动发给 Tab 456
+
+**相关 Tools**: `list_tabs` / `switch_tab` / `open_tab`
 
 ---
 
