@@ -1,0 +1,14 @@
+{
+  "name": "membrowser-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "rm -rf dist && tsc && cp manifest.json dist/ && mkdir -p dist/sidepanel && cp src/sidepanel/index.html dist/sidepanel/ && esbuild src/sidepanel/index.ts --bundle --outfile=dist/sidepanel/index.js --target=chrome100 && rm -f dist/sidepanel/ws-client.js dist/sidepanel/update-store.js dist/sidepanel/poll-fallback.js && rm -rf dist/shared",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.3.0"
+  }
+}

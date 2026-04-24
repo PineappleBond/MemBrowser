@@ -1,0 +1,21 @@
+# IDE
+.idea/
+.vscode/
+
+# Secrets
+.env
+backend/configs/.env
+
+# Go
+backend/bin/
+backend/server
+backend/data/
+
+# Build output
+extension/dist/
+
+# Dependencies
+extension/node_modules/
+
+# OS
+.DS_Store

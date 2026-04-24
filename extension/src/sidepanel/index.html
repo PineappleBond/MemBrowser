@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemBrowser</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0F172A;
+      color: #F8FAFC;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .panel-logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #22C55E, #3B82F6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: white;
+    }
+    .panel-logo-text {
+      font-weight: 600;
+      font-size: 16px;
+      color: #F8FAFC;
+    }
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #94A3B8;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #334155;
+    }
+    .status-dot.connected {
+      background: #22C55E;
+      box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+    }
+
+    /* Body */
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+      margin: 16px 0;
+    }
+
+    /* Model Selector */
+    .model-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .model-chip {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
+      color: #94A3B8;
+    }
+    .model-chip.active {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: #22C55E;
+      color: #4ADE80;
+    }
+    .model-chip:hover {
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    /* Task Input */
+    .task-input-section {
+      margin-bottom: 24px;
+    }
+    .task-input-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94A3B8;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .task-input-wrapper {
+      position: relative;
+    }
+    .task-input {
+      width: 100%;
+      padding: 14px 48px 14px 16px;
+      background: #1E293B;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: #F8FAFC;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 60px;
+      transition: border-color 0.2s;
+    }
+    .task-input:focus {
+      outline: none;
+      border-color: #22C55E;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+    }
+    .task-input::placeholder {
+      color: #475569;
+    }
+    .task-submit-btn {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 36px;
+      height: 36px;
+      background: #22C55E;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .task-submit-btn:hover {
+      background: #16A34A;
+    }
+    .task-submit-btn svg {
+      width: 18px;
+      height: 18px;
+      color: white;
+    }
+
+    /* Task Status */
+    .task-status-section {
+      margin-bottom: 24px;
+    }
+    .task-status-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .task-status-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .task-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      display: none;
+    }
+    .task-badge.running {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60A5FA;
+    }
+    .task-badge.completed {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ADE80;
+    }
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .step-item:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    .step-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-icon.completed { background: #22C55E; }
+    .step-icon.running { background: #3B82F6; animation: pulse 2s infinite; }
+    .step-icon.pending { background: #334155; border: 2px solid #475569; }
+    .step-icon.failed { background: #EF4444; }
+    .step-icon svg {
+      width: 12px;
+      height: 12px;
+      color: white;
+    }
+    .step-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .step-text {
+      font-size: 14px;
+      color: #F8FAFC;
+      line-height: 1.4;
+    }
+    .step-meta {
+      font-size: 12px;
+      color: #475569;
+      margin-top: 2px;
+      font-family: monospace;
+    }
+    .step-item.active .step-text {
+      color: #60A5FA;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Memory Indicator */
+    .memory-indicator {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .memory-indicator-icon {
+      width: 16px;
+      height: 16px;
+      color: #22C55E;
+    }
+    .memory-indicator-text {
+      font-size: 13px;
+      color: #4ADE80;
+      font-family: monospace;
+    }
+
+    /* Help Banner */
+    .help-banner {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05));
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .help-banner-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .help-banner-icon {
+      width: 20px;
+      height: 20px;
+      color: #F59E0B;
+    }
+    .help-banner-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #FBBF24;
+    }
+    .help-banner-text {
+      font-size: 13px;
+      color: #FCD34D;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .help-banner-btn {
+      width: 100%;
+      padding: 10px;
+      background: #F59E0B;
+      color: #0F172A;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .help-banner-btn:hover {
+      background: #D97706;
+    }
+
+    /* Settings */
+    .settings-section {
+      display: none;
+      margin-bottom: 16px;
+    }
+    .settings-section label {
+      font-size: 12px;
+      color: #94A3B8;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .settings-section input {
+      width: 100%;
+      padding: 8px 12px;
+      background: #1E293B;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: #F8FAFC;
+      font-size: 13px;
+      font-family: monospace;
+      margin-bottom: 10px;
+    }
+    .settings-btn {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .settings-btn-save {
+      background: #22C55E;
+      color: white;
+    }
+    .settings-btn-test {
+      background: #334155;
+      color: #94A3B8;
+    }
+
+    /* Footer */
+    .panel-footer {
+      padding: 12px 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-footer-text {
+      font-size: 11px;
+      color: #475569;
+      font-family: monospace;
+    }
+    .panel-footer-links {
+      display: flex;
+      gap: 12px;
+    }
+    .panel-footer-link {
+      font-size: 12px;
+      color: #94A3B8;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .panel-footer-link:hover {
+      color: #F8FAFC;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.ok { background: #22C55E; color: white; }
+    .toast.err { background: #EF4444; color: white; }
+  </style>
+</head>
+<body>
+  <div class="toast" id="toast"></div>
+  <div class="panel-header">
+    <div class="panel-logo">
+      <div class="panel-logo-icon">M</div>
+      <div class="panel-logo-text">MemBrowser</div>
+    </div>
+    <div class="connection-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">未连接</span>
+    </div>
+  </div>
+
+  <div class="panel-body">
+    <!-- Model Selector -->
+    <div class="section-label">模型</div>
+    <div class="model-selector">
+      <button class="model-chip" data-model="haiku">Haiku</button>
+      <button class="model-chip active" data-model="sonnet">Sonnet</button>
+      <button class="model-chip" data-model="opus">Opus</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Task Input -->
+    <div class="task-input-section">
+      <div class="task-input-label">任务描述</div>
+      <div class="task-input-wrapper">
+        <textarea class="task-input" id="taskInput" placeholder="描述你想自动化的任务...&#10;例如：把这个商品上架到淘宝"></textarea>
+        <button class="task-submit-btn" id="submitBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+        <button class="task-submit-btn" id="stopBtn" style="display:none;background:#EF4444;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Settings (collapsed) -->
+    <div class="settings-section" id="settingsSection">
+      <div class="section-label">连接设置</div>
+      <label>WebSocket URL</label>
+      <input type="text" id="wsUrl" value="ws://localhost:8080/ws">
+      <label>认证 Key</label>
+      <input type="password" id="authKey" value="change-me">
+      <label>API Base URL</label>
+      <input type="text" id="baseUrl" value="http://localhost:8080">
+      <div style="display: flex; gap: 8px;">
+        <button class="settings-btn settings-btn-save" id="saveSettingsBtn">保存</button>
+        <button class="settings-btn settings-btn-test" id="testConnBtn">测试连接</button>
+      </div>
+      <div class="divider"></div>
+    </div>
+
+    <!-- Memory Indicator -->
+    <div class="memory-indicator" id="memoryIndicator">
+      <svg class="memory-indicator-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span class="memory-indicator-text">记忆命中 - 直接执行</span>
+    </div>
+
+    <!-- Task Status -->
+    <div class="task-status-section">
+      <div class="task-status-header">
+        <div class="task-status-title">执行进度</div>
+        <div class="task-badge" id="taskBadge">运行中</div>
+      </div>
+      <div class="step-list" id="stepList">
+        <div class="step-item">
+          <div class="step-content">
+            <div class="step-text" style="color: #475569; font-style: italic;">
+              输入任务描述开始执行
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thinking Area -->
+    <div class="help-banner" id="thinkingArea" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,0.15),rgba(59,130,246,0.05));border-color:rgba(59,130,246,0.3);">
+      <div class="help-banner-header">
+        <svg class="help-banner-icon" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2">
+          <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>
+        <div class="help-banner-title" style="color:#60A5FA;">思考中</div>
+      </div>
+      <div class="help-banner-text" id="thinkingText" style="color:#93C5FD;"></div>
+    </div>
+
+    <!-- Help Banner -->
+    <div class="help-banner" id="helpBanner">
+      <div class="help-banner-header">
+        <svg class="help-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <div class="help-banner-title">需要你的帮助</div>
+      </div>
+      <div class="help-banner-text" id="helpText"></div>
+      <button class="help-banner-btn" id="helpBtn">开始示教</button>
+    </div>
+  </div>
+
+  <div class="panel-footer">
+    <div class="panel-footer-text">v0.1.0</div>
+    <div class="panel-footer-links">
+      <a class="panel-footer-link" id="settingsToggle">设置</a>
+      <a class="panel-footer-link">帮助</a>
+    </div>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>

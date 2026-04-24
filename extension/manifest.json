@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "MemBrowser",
+  "version": "0.1.0",
+  "description": "Web 自动化助手",
+  "permissions": ["sidePanel", "activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:*/*"],
+  "side_panel": {
+    "default_path": "sidepanel/index.html",
+    "openPanelOnActionClick": true
+  },
+  "background": {
+    "service_worker": "background/index.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/index.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "MemBrowser"
+  }
+}
